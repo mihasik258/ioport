@@ -174,3 +174,4 @@ void io_write_dword(uintptr_t addr, uint32_t value)
   }
   mem_write(addr, value, 4);
 }
+
