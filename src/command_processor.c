@@ -28,6 +28,7 @@ static int parse_number(const char *str, uintptr_t *value)
   return 0;
 }
 
+
 static void print_value(const char *cmd, uintptr_t addr,
       unsigned long val)
 {

@@ -24,7 +24,6 @@ add_executable(io_tool
 )
 
 target_include_directories(io_tool PRIVATE src)
-target_link_libraries(io_tool ${READLINE_LIBRARIES})
 
 # Install target
 install(TARGETS io_tool DESTINATION bin)
