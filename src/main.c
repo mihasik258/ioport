@@ -9,6 +9,21 @@
 
 #define MAX_INPUT_LENGTH 1024
 #define HISTORY_SIZE 100
+#define MAX_CMD_LENGTH 16
+#define MAX_ARG_LENGTH 32
+
+#define KEY_BACKSPACE 127
+#define KEY_DELETE 8
+#define KEY_ESCAPE 27
+#define KEY_ENTER 10
+#define KEY_CTRL_C 3
+#define KEY_CTRL_D 4
+#define KEY_LEFT_BRACKET 91
+#define KEY_UP_ARROW 65
+#define KEY_DOWN_ARROW 66
+
+#define NULL_TERMINATOR '\0'
+#define NEWLINE_CHAR '\n'
 
 static char history[HISTORY_SIZE][MAX_INPUT_LENGTH];
 static int history_count = 0;
@@ -38,8 +53,8 @@ static char* read_line(void) {
     fflush(stdout);
     while (1) {
         c = getchar();
-        if (c == '\n' || c == '\r') {
-            buffer[pos] = '\0';
+        if (c == NEWLINE_CHAR) {
+            buffer[pos] = NULL_TERMINATOR;
             printf("\n");
             if (pos > 0 && history_count < HISTORY_SIZE) {
                 strncpy(history[history_count], buffer, MAX_INPUT_LENGTH);
@@ -50,18 +65,18 @@ static char* read_line(void) {
             reset_terminal_mode(&original_termios);
             return buffer;
         }
-        else if (c == 127 || c == 8) {
+        else if (c == KEY_BACKSPACE || c == KEY_DELETE) {
             if (pos > 0) {
                 pos--;
                 printf("\b \b");
                 fflush(stdout);
             }
         }
-        else if (c == 27) {
+        else if (c == KEY_ESCAPE) {
             c = getchar();
-            if (c == 91) { 
+            if (c == KEY_LEFT_BRACKET) { 
                 c = getchar();
-                if (c == 65) {
+                if (c == KEY_UP_ARROW) {
                     if (history_current > 0) {
                         history_current--;
                         for (int i = 0; i < pos; i++) {
@@ -73,7 +88,7 @@ static char* read_line(void) {
                         fflush(stdout);
                     }
                 }
-                else if (c == 66) {
+                else if (c == KEY_DOWN_ARROW) {
                     if (history_current < history_count - 1) {
                         history_current++;
                         for (int i = 0; i < pos; i++) {
@@ -89,7 +104,7 @@ static char* read_line(void) {
                         for (int i = 0; i < pos; i++) {
                             printf("\b \b");
                         }
-                        buffer[0] = '\0';
+                        buffer[0] = NULL_TERMINATOR;
                         pos = 0;
                     }
                 }
@@ -101,12 +116,12 @@ static char* read_line(void) {
             printf("%c", c);
             fflush(stdout);
         }
-        else if (c == 3) {
+        else if (c == KEY_CTRL_C) {
             printf("\n");
             reset_terminal_mode(&original_termios);
             return NULL;
         }
-        else if (c == 4) {
+        else if (c == KEY_CTRL_D) {
             if (pos == 0) {
                 printf("\n");
                 reset_terminal_mode(&original_termios);
