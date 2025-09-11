@@ -90,15 +90,23 @@ static void handle_write_command(const char *cmd, const char *arg1,
 
 int process_command(const char *line)
 {
-  char cmd[32], arg1[64], arg2[64];
+  char cmd[8], arg1[32], arg2[32];
   int count;
 
   while (isspace(*line))
     line++;
   if (!*line)
     return 0;
-
-  count = sscanf(line, "%31s %63s %63s", cmd, arg1, arg2);
+/*
+the sizes of commands and arguments were initially taken
+with a large margin to avoid calculations, 
+the numbers 31 and 63 are the lengths of commands and 
+arguments -1, so that the zero sign would fit. Reduced the sizes 
+to 8 and 32 respectively, 8 fits our commands, 32 is taken with a margin,
+the maximum 64-bit decimal number takes up 20 characters. 
+For the beauty of the code, values that are multiples of two are taken
+*/
+  count = sscanf(line, "%7s %31s %31s", cmd, arg1, arg2);
 
   if (!strcmp(cmd, "quit") || !strcmp(cmd, "exit"))
     return 1;
