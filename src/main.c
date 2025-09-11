@@ -31,6 +31,9 @@ l would be enough to make it work, so I didn't
 #define KEY_LEFT_ARROW 68
 #define KEY_RIGHT_ARROW 67
 
+#define ASCII_SPACE 32
+#define ASCII_DEL 127
+
 #define NULL_TERMINATOR '\0'
 #define NEWLINE_CHAR '\n'
 
@@ -48,6 +51,8 @@ static history_entry_t *history_tail = NULL;
 static history_entry_t *history_current = NULL;
 static size_t history_memory_used = 0;
 static size_t history_count = 0;
+static char unfinished_input[MAX_INPUT_LENGTH] = {0};
+static bool has_unfinished_input = false;
 
 static void add_to_history(const char *command) {
     size_t command_len = strlen(command) + 1;
@@ -134,9 +139,19 @@ static char* read_line(void) {
     int pos = 0;
     int cursor_pos = 0;
     int c;
+    buffer[0] = NULL_TERMINATOR;
+    if (has_unfinished_input) {
+        strncpy(buffer, unfinished_input, MAX_INPUT_LENGTH);
+        pos = strlen(buffer);
+        cursor_pos = pos;
+        has_unfinished_input = false;
+    }
     struct termios original_termios;
     set_terminal_mode(&original_termios);
     printf("io> ");
+    if (pos > 0) {
+        printf("%s", buffer);
+    }
     fflush(stdout);
     while (1) {
         c = getchar();
@@ -147,6 +162,8 @@ static char* read_line(void) {
 				add_to_history(buffer);
             }
             history_current = NULL;
+            unfinished_input[0] = NULL_TERMINATOR;
+            has_unfinished_input = false;
             reset_terminal_mode(&original_termios);
             return buffer;
         }
@@ -171,8 +188,14 @@ static char* read_line(void) {
             if (c == KEY_LEFT_BRACKET) {
                 c = getchar();
                 if (c == KEY_UP_ARROW) {
+                	if (pos > 0) {
+                        strncpy(unfinished_input, buffer, MAX_INPUT_LENGTH);
+                        has_unfinished_input = true;
+                    }
                     if (history_current == NULL) {
-                        history_current = history_tail;
+                    	if (history_tail != NULL) {
+                        	history_current = history_tail;
+                        }
                     } else if (history_current->prev != NULL) {
                         history_current = history_current->prev;
                     }
@@ -192,7 +215,7 @@ static char* read_line(void) {
                         if (history_current->next != NULL) {
                             history_current = history_current->next;
                         } else {
-                            history_current = NULL;
+                        	history_current = NULL;
                         }
                         for (int i = 0; i < pos; i++) {
                             printf("\b \b");
@@ -202,6 +225,12 @@ static char* read_line(void) {
                             pos = strlen(buffer);
                             cursor_pos = pos;
                             printf("%s", buffer);
+                        } else if (has_unfinished_input) {
+                            strncpy(buffer, unfinished_input, MAX_INPUT_LENGTH);
+                            pos = strlen(buffer);
+                            cursor_pos = pos;
+                            printf("%s", buffer);
+                            has_unfinished_input = false;
                         } else {
                             buffer[0] = NULL_TERMINATOR;
                             pos = 0;
@@ -226,7 +255,7 @@ static char* read_line(void) {
                 }
             }
         }
-        else if (c >= 32 && c < 127 && pos < MAX_INPUT_LENGTH - 1) {
+        else if (c >= ASCII_SPACE && c < ASCII_DEL && pos < MAX_INPUT_LENGTH - 1) {
             if (cursor_pos < pos) {
                 memmove(&buffer[cursor_pos + 1], &buffer[cursor_pos], pos - cursor_pos);
             }
@@ -244,6 +273,10 @@ static char* read_line(void) {
                 }
             }
             fflush(stdout);
+            if (has_unfinished_input) {
+               has_unfinished_input = false;
+               unfinished_input[0] = NULL_TERMINATOR;
+            }
         }
         else if (c == KEY_CTRL_C) {
             printf("\n");
@@ -262,11 +295,11 @@ static char* read_line(void) {
 
 int main(void) {
     printf("IO Access Tool - Low-level hardware register access\n");
-    if (!io_init()) {
-        fprintf(stderr, "Initialization failed. Some features may not work properly.\n");
-    }
     if (geteuid() != 0) {
         fprintf(stderr, "Warning: Running without root privileges. Many operations will fail.\n");
+    }
+    else if (!io_init()) {
+        fprintf(stderr, "Initialization failed. Some features may not work properly.\n");
     }
     printf("Type 'help' for available commands.\n");
     
@@ -283,6 +316,7 @@ int main(void) {
     }
     
     io_cleanup();
+    free_history();
     printf("Exiting IO Access Tool. Goodbye!\n");
     
     return 0;

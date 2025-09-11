@@ -68,18 +68,32 @@ static void handle_read_command(const char *cmd, const char *arg,
         uint16_t (*read_word)(uintptr_t),
         uint32_t (*read_dword)(uintptr_t))
 {
-  uintptr_t addr;
-  if (parse_number(arg, &addr)) {
+    uintptr_t addr;
+    if (parse_number(arg, &addr)) {
     fprintf(stderr, "Invalid address: %s\n", arg);
     return;
-  }
-
-  if (!strcmp(cmd, "iorb"))
-    print_value(cmd, addr, read_byte(addr));
-  else if (!strcmp(cmd, "iorw"))
-    print_value(cmd, addr, read_word(addr));
-  else if (!strcmp(cmd, "iord"))
-    print_value(cmd, addr, read_dword(addr));
+    }
+    int ok = 1;
+	uint64_t val;
+    if (!strcmp(cmd, "iorb")) {
+        if (mem_read(addr, 1, &val) == 0)
+            print_value(cmd, addr, read_byte(addr));
+        else
+            ok = 0;
+    } else if (!strcmp(cmd, "iorw")) {
+        if (mem_read(addr, 2, &val) == 0)
+            print_value(cmd, addr, read_word(addr));
+        else
+            ok = 0;
+    } else if (!strcmp(cmd, "iord")) {
+        if (mem_read(addr, 4, &val) == 0)
+            print_value(cmd, addr, read_dword(addr));
+        else
+            ok = 0;
+    }
+    if (!ok) {
+        fprintf(stderr, "Read failed at 0x%lx\n", (unsigned long)addr);
+    }
 }
 
 static void handle_write_command(const char *cmd, const char *arg1,

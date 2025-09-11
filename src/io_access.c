@@ -11,6 +11,11 @@
 #define PAGE_SIZE  4096
 #define PORT_MASK  0xFFFF
 
+static void print_error(const char* operation, uintptr_t addr) {
+  fprintf(stderr, "Error %s address 0x%lX: %s\n", 
+            operation, addr, strerror(errno));
+}
+
 static int  dev_mem_fd = -1;
 static bool  has_port_access = false;
 
@@ -44,31 +49,29 @@ static void *map_addr(uintptr_t addr, int prot)
   return map;
 }
 
-static inline uint64_t mem_read(uintptr_t addr, size_t size)
+int mem_read(uintptr_t addr, size_t size, uint64_t *out_val)
 {
   void *map = map_addr(addr, PROT_READ);
   if (!map)
-    return 0;
-
+      return -1;
   off_t offset = get_page_offset(addr);
-  uint64_t val = 0;
-
   switch (size) {
   case 1:
-    val = *((volatile uint8_t *)((uintptr_t)map + offset));
-    break;
+      *out_val = *((volatile uint8_t *)((uintptr_t)map + offset));
+      break;
   case 2:
-    val = *((volatile uint16_t *)((uintptr_t)map + offset));
-    break;
+      *out_val = *((volatile uint16_t *)((uintptr_t)map + offset));
+      break;
   case 4:
-    val = *((volatile uint32_t *)((uintptr_t)map + offset));
-    break;
-  default:
-    fprintf(stderr, "Unsupported read size %zu\n", size);
+      *out_val = *((volatile uint32_t *)((uintptr_t)map + offset));
+      break;
+   default:
+      fprintf(stderr, "Unsupported read size %zu\n", size);
+      munmap(map, PAGE_SIZE);
+      return -1;
   }
-
   munmap(map, PAGE_SIZE);
-  return val;
+  return 0;
 }
 
 static inline void mem_write(uintptr_t addr, uint64_t value, size_t size)
@@ -106,8 +109,6 @@ bool io_init(void)
 
   dev_mem_fd = open("/dev/mem", O_RDWR | O_SYNC);
   if (dev_mem_fd < 0) {
-    fprintf(stderr, "Warning: Failed to open /dev/mem: %s\n",
-      strerror(errno));
     return has_port_access;
   }
 
@@ -122,27 +123,36 @@ void io_cleanup(void)
   }
 }
 
+
 uint8_t io_read_byte(uintptr_t addr)
 {
+  uint64_t val;
   if (is_port_address(addr) && has_port_access)
-    return inb(addr);
-  return (uint8_t)mem_read(addr, 1);
+      return inb(addr);
+  if (mem_read(addr, 1, &val) == 0)
+      return (uint8_t)val;
+   return 0;
 }
 
 uint16_t io_read_word(uintptr_t addr)
 {
+  uint64_t val;
   if (is_port_address(addr) && has_port_access)
-    return inw(addr);
-  return (uint16_t)mem_read(addr, 2);
+      return inw(addr);
+  if (mem_read(addr, 2, &val) == 0)
+      return (uint16_t)val;
+  return 0;
 }
 
 uint32_t io_read_dword(uintptr_t addr)
 {
+  uint64_t val;
   if (is_port_address(addr) && has_port_access)
-    return inl(addr);
-  return (uint32_t)mem_read(addr, 4);
+      return inl(addr);
+  if (mem_read(addr, 4, &val) == 0)
+      return (uint32_t)val;
+  return 0;
 }
-
 void io_write_byte(uintptr_t addr, uint8_t value)
 {
   if (is_port_address(addr) && has_port_access) {
