@@ -8,26 +8,49 @@
 
 static int parse_number(const char *str, uintptr_t *value)
 {
-  char *endptr;
-  unsigned long num;
+    if (!str || !*str)
+        return -1;
+    while (isspace((unsigned char)*str)) str++;
+    if (!*str)
+        return -1;
+    if (*str == '-')
+        return -1;
+    int base = 10;
+    if (*str == '0') {
+        str++;
+        if (*str == 'x') {
+            base = 16;
+            str++;
+        } else if (*str) {
+            base = 8;
+        } else {
+            *value = 0;
+            return 0;
+        }
+    }
+    uintptr_t result = 0;
+    while (*str) {
+        unsigned digit;
+        if (isdigit((unsigned char)*str))
+            digit = *str - '0';
+        else if (base == 16 && *str >= 'A' && *str <= 'F')
+            digit = 10 + (*str - 'A');
+        else
+            break;
 
-  if (!str || !*str)
-    return -1;
-
-  if (!strncmp(str, "0x", 2))
-    num = strtoul(str, &endptr, 16);
-  else if (str[0] == '0' && isdigit(str[1]))
-    num = strtoul(str, &endptr, 8);
-  else
-    num = strtoul(str, &endptr, 10);
-
-  if (*endptr)
-    return -1;
-
-  *value = (uintptr_t)num;
-  return 0;
+        if (digit >= (unsigned)base)
+            return -1;
+        if (result > (UINTPTR_MAX - digit) / base)
+            return -1;
+        result = result * base + digit;
+        str++;
+    }
+    while (isspace((unsigned char)*str)) str++;
+    if (*str != '\0')
+        return -1;
+    *value = result;
+    return 0;
 }
-
 
 static void print_value(const char *cmd, uintptr_t addr,
       unsigned long val)
