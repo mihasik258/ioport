@@ -1,3 +1,9 @@
+/*
+I thought that the basic version of the termina
+l would be enough to make it work, so I didn't
+ implement the cursor initially.
+*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -21,6 +27,8 @@
 #define KEY_LEFT_BRACKET 91
 #define KEY_UP_ARROW 65
 #define KEY_DOWN_ARROW 66
+#define KEY_LEFT_ARROW 68
+#define KEY_RIGHT_ARROW 67
 
 #define NULL_TERMINATOR '\0'
 #define NEWLINE_CHAR '\n'
@@ -42,10 +50,10 @@ static void set_terminal_mode(struct termios *original) {
 static void reset_terminal_mode(struct termios *original) {
     tcsetattr(STDIN_FILENO, TCSANOW, original);
 }
-
 static char* read_line(void) {
     static char buffer[MAX_INPUT_LENGTH];
     int pos = 0;
+    int cursor_pos = 0;
     int c;
     struct termios original_termios;
     set_terminal_mode(&original_termios);
@@ -61,14 +69,22 @@ static char* read_line(void) {
                 history_count++;
             }
             history_current = history_count;
-            
             reset_terminal_mode(&original_termios);
             return buffer;
         }
         else if (c == KEY_BACKSPACE || c == KEY_DELETE) {
-            if (pos > 0) {
+            if (pos > 0 && cursor_pos > 0) {
+                memmove(&buffer[cursor_pos - 1], &buffer[cursor_pos], pos - cursor_pos);
                 pos--;
-                printf("\b \b");
+                cursor_pos--;
+                printf("\b");
+                for (int i = cursor_pos; i < pos; i++) {
+                    printf("%c", buffer[i]);
+                }
+                printf(" ");
+                for (int i = 0; i <= pos - cursor_pos; i++) {
+                    printf("\b");
+                }
                 fflush(stdout);
             }
         }
@@ -84,6 +100,7 @@ static char* read_line(void) {
                         }                       
                         strncpy(buffer, history[history_current], MAX_INPUT_LENGTH);
                         pos = strlen(buffer);
+                        cursor_pos = pos;  
                         printf("%s", buffer);
                         fflush(stdout);
                     }
@@ -96,6 +113,7 @@ static char* read_line(void) {
                         }
                         strncpy(buffer, history[history_current], MAX_INPUT_LENGTH);
                         pos = strlen(buffer);
+                        cursor_pos = pos;  
                         printf("%s", buffer);
                         fflush(stdout);
                     }
@@ -106,14 +124,42 @@ static char* read_line(void) {
                         }
                         buffer[0] = NULL_TERMINATOR;
                         pos = 0;
+                        cursor_pos = 0;  
+                    }
+                }
+                else if (c == KEY_LEFT_ARROW) {
+                    if (cursor_pos > 0) {
+                        cursor_pos--;
+                        printf("\033[D"); 
+                        fflush(stdout);
+                    }
+                }
+                else if (c == KEY_RIGHT_ARROW) {
+                    if (cursor_pos < pos) {
+                        cursor_pos++;
+                        printf("\033[C"); 
+                        fflush(stdout);
                     }
                 }
             }
         }
         else if (c >= 32 && c < 127 && pos < MAX_INPUT_LENGTH - 1) {
-            buffer[pos] = c;
+            if (cursor_pos < pos) {
+                memmove(&buffer[cursor_pos + 1], &buffer[cursor_pos], pos - cursor_pos);
+            }
+            buffer[cursor_pos] = c;
             pos++;
-            printf("%c", c);
+            cursor_pos++;
+            if (cursor_pos == pos) {
+                printf("%c", c);
+            } else {
+                for (int i = cursor_pos - 1; i < pos; i++) {
+                    printf("%c", buffer[i]);
+                }
+                for (int i = 0; i < pos - cursor_pos; i++) {
+                    printf("\b");
+                }
+            }
             fflush(stdout);
         }
         else if (c == KEY_CTRL_C) {
