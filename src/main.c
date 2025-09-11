@@ -262,15 +262,12 @@ static char* read_line(void) {
 
 int main(void) {
     printf("IO Access Tool - Low-level hardware register access\n");
-    
     if (!io_init()) {
         fprintf(stderr, "Initialization failed. Some features may not work properly.\n");
-        fprintf(stderr, "Try running with root privileges for full functionality.\n");
     }
     if (geteuid() != 0) {
         fprintf(stderr, "Warning: Running without root privileges. Many operations will fail.\n");
     }
-    
     printf("Type 'help' for available commands.\n");
     
     char* line;
