@@ -98,14 +98,9 @@ static inline void mem_write(uintptr_t addr, uint64_t value, size_t size)
 
 bool io_init(void)
 {
-  if (geteuid() != 0)
-    fprintf(stderr, "Warning: Root privileges required for direct hardware access\n");
-
   if (iopl(3) == 0) {
     has_port_access = true;
   } else {
-    fprintf(stderr, "Warning: Failed to get I/O port access: %s\n",
-      strerror(errno));
     has_port_access = false;
   }
 

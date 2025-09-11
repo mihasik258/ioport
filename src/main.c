@@ -55,7 +55,7 @@ static void add_to_history(const char *command) {
         history_entry_t *oldest = history_head;
         size_t oldest_len = strlen(oldest->command) + 1;
         history_memory_used -= oldest_len;
-        history_count--;        
+        history_count--;
         history_head = oldest->next;
         if (history_head != NULL) {
             history_head->prev = NULL;
@@ -119,7 +119,7 @@ static void set_terminal_mode(struct termios *original) {
     struct termios new_termios;
     tcgetattr(STDIN_FILENO, original);
     new_termios = *original;
-    new_termios.c_lflag &= ~(ICANON | ECHO | ISIG); 
+    new_termios.c_lflag &= ~(ICANON | ECHO | ISIG);
     new_termios.c_cc[VMIN] = 1;
     new_termios.c_cc[VTIME] = 0;
     tcsetattr(STDIN_FILENO, TCSANOW, &new_termios);
@@ -168,7 +168,7 @@ static char* read_line(void) {
         }
         else if (c == KEY_ESCAPE) {
             c = getchar();
-            if (c == KEY_LEFT_BRACKET) { 
+            if (c == KEY_LEFT_BRACKET) {
                 c = getchar();
                 if (c == KEY_UP_ARROW) {
                     if (history_current == NULL) {
@@ -213,14 +213,14 @@ static char* read_line(void) {
                 else if (c == KEY_LEFT_ARROW) {
                     if (cursor_pos > 0) {
                         cursor_pos--;
-                        printf("\033[D"); 
+                        printf("\033[D");
                         fflush(stdout);
                     }
                 }
                 else if (c == KEY_RIGHT_ARROW) {
                     if (cursor_pos < pos) {
                         cursor_pos++;
-                        printf("\033[C"); 
+                        printf("\033[C");
                         fflush(stdout);
                     }
                 }
@@ -277,7 +277,7 @@ int main(void) {
         line = read_line();
         
         if (!line) {
-            break; 
+            break;
         }
         should_exit = process_command(line);
     }
