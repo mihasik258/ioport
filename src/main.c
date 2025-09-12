@@ -153,6 +153,7 @@ static char* read_line(void) {
         printf("%s", buffer);
     }
     fflush(stdout);
+    int count;
     while (1) {
         c = getchar();
         if (c == NEWLINE_CHAR) {
@@ -181,78 +182,6 @@ static char* read_line(void) {
                     printf("\b");
                 }
                 fflush(stdout);
-            }
-        }
-        else if (c == KEY_ESCAPE) {
-            c = getchar();
-            if (c == KEY_LEFT_BRACKET) {
-                c = getchar();
-                if (c == KEY_UP_ARROW) {
-                	if (pos > 0) {
-                        strncpy(unfinished_input, buffer, MAX_INPUT_LENGTH);
-                        has_unfinished_input = true;
-                    }
-                    if (history_current == NULL) {
-                    	if (history_tail != NULL) {
-                        	history_current = history_tail;
-                        }
-                    } else if (history_current->prev != NULL) {
-                        history_current = history_current->prev;
-                    }
-                    if (history_current != NULL) {
-                        for (int i = 0; i < pos; i++) {
-                            printf("\b \b");
-                        }
-                        strncpy(buffer, history_current->command, MAX_INPUT_LENGTH);
-                        pos = strlen(buffer);
-                        cursor_pos = pos;
-                        printf("%s", buffer);
-                        fflush(stdout);
-                    }
-                }
-                else if (c == KEY_DOWN_ARROW) {
-                    if (history_current != NULL) {
-                        if (history_current->next != NULL) {
-                            history_current = history_current->next;
-                        } else {
-                        	history_current = NULL;
-                        }
-                        for (int i = 0; i < pos; i++) {
-                            printf("\b \b");
-                        }
-                        if (history_current != NULL) {
-                            strncpy(buffer, history_current->command, MAX_INPUT_LENGTH);
-                            pos = strlen(buffer);
-                            cursor_pos = pos;
-                            printf("%s", buffer);
-                        } else if (has_unfinished_input) {
-                            strncpy(buffer, unfinished_input, MAX_INPUT_LENGTH);
-                            pos = strlen(buffer);
-                            cursor_pos = pos;
-                            printf("%s", buffer);
-                            has_unfinished_input = false;
-                        } else {
-                            buffer[0] = NULL_TERMINATOR;
-                            pos = 0;
-                            cursor_pos = 0;
-                        }
-                        fflush(stdout);
-                    }
-                }
-                else if (c == KEY_LEFT_ARROW) {
-                    if (cursor_pos > 0) {
-                        cursor_pos--;
-                        printf("\033[D");
-                        fflush(stdout);
-                    }
-                }
-                else if (c == KEY_RIGHT_ARROW) {
-                    if (cursor_pos < pos) {
-                        cursor_pos++;
-                        printf("\033[C");
-                        fflush(stdout);
-                    }
-                }
             }
         }
         else if (c >= ASCII_SPACE && c < ASCII_DEL && pos < MAX_INPUT_LENGTH - 1) {
@@ -288,6 +217,80 @@ static char* read_line(void) {
                 printf("\n");
                 reset_terminal_mode(&original_termios);
                 return NULL;
+            }
+        }
+        else if (c == KEY_ESCAPE) {
+            c = getchar();
+            if (c == KEY_LEFT_BRACKET) {
+                c = getchar();
+                if (c == KEY_UP_ARROW) {
+                	if (cursor_pos > 0 && count == 0) {
+                        strncpy(unfinished_input, buffer, MAX_INPUT_LENGTH);
+                        has_unfinished_input = true;
+                        count = 1;
+                    }
+                    if (history_current == NULL) {
+                    	history_current = history_tail;
+                    } else if (history_current->prev != NULL) {
+                        history_current = history_current->prev;
+                    }
+                    if (history_current != NULL) {
+						for (int i = 0; i < pos; i++) {
+            			printf("\b \b");
+	        			}
+	                    strncpy(buffer, history_current->command, MAX_INPUT_LENGTH);
+	                    pos = strlen(buffer);
+	                    cursor_pos = pos;
+	                    printf("%s", buffer);
+	                    fflush(stdout);
+	                }
+                }
+                else if (c == KEY_DOWN_ARROW) {
+                    if (history_current != NULL) {
+                        if (history_current->next != NULL) {
+                            history_current = history_current->next;
+                        } else {
+                        	history_current = NULL;
+                        }
+	        			for (int i = 0; i < pos; i++) {
+            				printf("\b \b");
+       					}
+                        if (history_current != NULL) {
+                            strncpy(buffer, history_current->command, MAX_INPUT_LENGTH);
+                            pos = strlen(buffer);
+                            cursor_pos = pos;
+                            printf("%s", buffer);
+                        } else {
+                        	if (has_unfinished_input && count) {
+                        		strncpy(buffer, unfinished_input, MAX_INPUT_LENGTH);
+                        	    pos = strlen(buffer);
+                        	    cursor_pos = pos;
+                        	    printf("%s", buffer);
+                        	    has_unfinished_input = false;
+                        	    count = 0;
+                        	} else{
+                            	buffer[0] = NULL_TERMINATOR;
+                            	pos = 0;
+                            	cursor_pos = 0;
+                            }
+                        }
+                        fflush(stdout);
+                    }
+                }
+                else if (c == KEY_LEFT_ARROW) {
+                    if (cursor_pos > 0) {
+                        cursor_pos--;
+                        printf("\033[D");
+                        fflush(stdout);
+                    }
+                }
+                else if (c == KEY_RIGHT_ARROW) {
+                    if (cursor_pos < pos) {
+                        cursor_pos++;
+                        printf("\033[C");
+                        fflush(stdout);
+                    }
+                }
             }
         }
     }
