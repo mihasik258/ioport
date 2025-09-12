@@ -15,7 +15,6 @@ else()
 endif()
 
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(READLINE REQUIRED readline)
 
 add_executable(io_tool
     src/main.c
