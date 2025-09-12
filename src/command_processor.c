@@ -8,6 +8,8 @@
 
 static int parse_number(const char *str, uintptr_t *value)
 {
+    // Convert string to integer (supports dec, oct, hex).
+    // Rejects invalid formats, negative numbers, and overflow.
     if (!str || !*str)
         return -1;
     while (isspace((unsigned char)*str)) str++;

@@ -8,8 +8,8 @@
 #include <errno.h>
 #include <string.h>
 
-#define PAGE_SIZE  4096
-#define PORT_MASK  0xFFFF
+#define PAGE_SIZE  4096 // Standard memory page size for x86 systems
+#define PORT_MASK  0xFFFF // Maximum address for port-mapped I/O
 
 static void print_error(const char* operation, uintptr_t addr) {
   fprintf(stderr, "Error %s address 0x%lX: %s\n", 
@@ -34,12 +34,13 @@ static inline size_t get_page_offset(uintptr_t addr)
   return addr & (PAGE_SIZE - 1);
 }
 
+// Map physical memory address to process virtual address space
 static void *map_addr(uintptr_t addr, int prot)
 {
   uintptr_t page_base = align_to_page(addr);
 
   void *map = mmap(NULL, PAGE_SIZE, prot, MAP_SHARED,
-       dev_mem_fd, page_base);
+       dev_mem_fd, page_base);	// Map entire page containing the target address
   if (map == MAP_FAILED) {
     fprintf(stderr, "Failed to map memory at 0x%lx: %s\n",
       (unsigned long)addr, strerror(errno));
@@ -81,7 +82,8 @@ static inline void mem_write(uintptr_t addr, uint64_t value, size_t size)
     return;
 
   off_t offset = get_page_offset(addr);
-
+// volatile is required for MMIO: prevents the compiler from reordering
+// or optimizing away accesses to device registers.
   switch (size) {
   case 1:
     *((volatile uint8_t *)((uintptr_t)map + offset)) = (uint8_t)value;
@@ -128,9 +130,9 @@ uint8_t io_read_byte(uintptr_t addr)
 {
   uint64_t val;
   if (is_port_address(addr) && has_port_access)
-      return inb(addr);
+      return inb(addr); // Use port I/O if available and address is in port range
   if (mem_read(addr, 1, &val) == 0)
-      return (uint8_t)val;
+      return (uint8_t)val; // Use memory-mapped I/O
    return 0;
 }
 

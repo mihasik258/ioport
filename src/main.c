@@ -1,7 +1,7 @@
 /*
-I thought that the basic version of the termina
-l would be enough to make it work, so I didn't
- implement the cursor initially.
+I thought that the basic version of the terminal
+would be enough to make it work, so I didn't
+implement the cursor initially.
 */
 
 #include <stdio.h>
@@ -108,6 +108,8 @@ static void free_history(void) {
     history_memory_used = 0;
     history_count = 0;
 }
+
+// Restores terminal state on SIGINT / SIGTERM
 static void sigint_handler(int sig) {
     if (termios_initialized) {
         tcsetattr(STDIN_FILENO, TCSANOW, &original_termios_global);
