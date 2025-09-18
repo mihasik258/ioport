@@ -58,11 +58,11 @@ static void print_value(const char *cmd, uintptr_t addr,
       unsigned long val)
 {
   if (!strcmp(cmd, "iorb"))
-    printf("0x%02lX\n", val & 0xFF);
+    printf("address 0x%lX: 0x%02lX\n", addr, val & 0xFF);
   else if (!strcmp(cmd, "iorw"))
-    printf("0x%04lX\n", val & 0xFFFF);
+    printf("address 0x%lX: 0x%04lX\n", addr, val & 0xFFFF);
   else if (!strcmp(cmd, "iord"))
-    printf("0x%08lX\n", val & 0xFFFFFFFF);
+    printf("address 0x%lX: 0x%08lX\n", addr,val & 0xFFFFFFFF);
 }
 
 static void handle_read_command(const char *cmd, const char *arg,
