@@ -19,23 +19,39 @@ implement the cursor initially.
 #define MAX_CMD_LENGTH 16
 #define MAX_ARG_LENGTH 32
 
+#define KEY_ESCAPE        27
+#define KEY_LEFT_BRACKET  '['
+#define KEY_TILDE         '~'
+
+#define KEY_UP_ARROW      'A'
+#define KEY_DOWN_ARROW    'B'
+#define KEY_RIGHT_ARROW   'C'
+#define KEY_LEFT_ARROW    'D'
+
+#define KEY_HOME_SHORT    'H'
+#define KEY_END_SHORT     'F'
+
+#define KEY_HOME_LONG     '1'
+#define KEY_END_LONG      '4'
+#define KEY_DELETE_LONG   '3'
+
 #define KEY_BACKSPACE 127
-#define KEY_DELETE 8
-#define KEY_ESCAPE 27
+#define KEY_BACKSPACE_DELETE 8
+#define KEY_DELETE 51
+#define KEY_HOME 72
+#define KEY_END  70
 #define KEY_ENTER 10
 #define KEY_CTRL_C 3
 #define KEY_CTRL_D 4
-#define KEY_LEFT_BRACKET 91
-#define KEY_UP_ARROW 65
-#define KEY_DOWN_ARROW 66
-#define KEY_LEFT_ARROW 68
-#define KEY_RIGHT_ARROW 67
 
 #define ASCII_SPACE 32
 #define ASCII_DEL 127
 
 #define NULL_TERMINATOR '\0'
 #define NEWLINE_CHAR '\n'
+
+#define CURSOR_LEFT   "\033[D"
+#define CURSOR_RIGHT  "\033[C"
 
 static struct termios original_termios_global;
 static int termios_initialized = 0;
@@ -54,6 +70,120 @@ static size_t history_count = 0;
 static char unfinished_input[MAX_INPUT_LENGTH] = {0};
 static bool has_unfinished_input = false;
 
+void handle_escape_sequence(char *buffer, int *pos, int *cursor_pos) {
+    int c = getchar();
+    if (c != KEY_LEFT_BRACKET) return;
+    int code = getchar();
+    if (code == KEY_UP_ARROW) {
+        if (history_current == NULL && *pos > 0) {
+            strncpy(unfinished_input, buffer, MAX_INPUT_LENGTH);
+            has_unfinished_input = true;
+        }
+        if (history_tail != NULL) {
+            if (history_current == NULL) {
+                history_current = history_tail;
+            } else if (history_current->prev != NULL) {
+                history_current = history_current->prev;
+            }
+            for (int i = 0; i < *pos; i++) {
+                printf("\b \b");
+            }
+            strncpy(buffer, history_current->command, MAX_INPUT_LENGTH);
+            *pos = strlen(buffer);
+            *cursor_pos = *pos;
+            printf("%s", buffer);
+        }
+        fflush(stdout);
+    }
+    else if (code == KEY_DOWN_ARROW) {
+        if (history_current != NULL) {
+            if (history_current->next != NULL) {
+                history_current = history_current->next;
+            } else {
+                history_current = NULL;
+            }
+            for (int i = 0; i < *pos; i++) {
+                printf("\b \b");
+            }
+            if (history_current != NULL) {
+                strncpy(buffer, history_current->command, MAX_INPUT_LENGTH);
+            } else if (has_unfinished_input) {
+                strncpy(buffer, unfinished_input, MAX_INPUT_LENGTH);
+            } else {
+                buffer[0] = NULL_TERMINATOR;
+            }
+            *pos = strlen(buffer);
+            *cursor_pos = *pos;
+            printf("%s", buffer);
+        }
+        fflush(stdout);
+    }
+    else if (code == KEY_LEFT_ARROW) {
+        if (*cursor_pos > 0) {
+            (*cursor_pos)--;
+            printf(CURSOR_LEFT);
+            fflush(stdout);
+        }
+    }
+    else if (code == KEY_RIGHT_ARROW) {
+        if (*cursor_pos < *pos) {
+            (*cursor_pos)++;
+            printf(CURSOR_RIGHT);
+            fflush(stdout);
+        }
+    }
+    else if (code == KEY_HOME_SHORT) {
+        while (*cursor_pos > 0) {
+            (*cursor_pos)--;
+            printf(CURSOR_LEFT);
+        }
+        fflush(stdout);
+    }
+    else if (code == KEY_END_SHORT) {
+        while (*cursor_pos < *pos) {
+            (*cursor_pos)++;
+            printf(CURSOR_RIGHT);
+        }
+        fflush(stdout);
+    }
+    else if (code == KEY_HOME_LONG || code == KEY_END_LONG || code == KEY_DELETE_LONG) {
+        int extra = getchar();
+        if (extra == KEY_TILDE) {
+            if (code == KEY_HOME_LONG) {
+                while (*cursor_pos > 0) {
+                    (*cursor_pos)--;
+                    printf(CURSOR_LEFT);
+                }
+                fflush(stdout);
+            }
+            else if (code == KEY_END_LONG) {
+                while (*cursor_pos < *pos) {
+                    (*cursor_pos)++;
+                    printf(CURSOR_RIGHT);
+                }
+                fflush(stdout);
+            }
+            else if (code == KEY_DELETE_LONG) {
+                if (*cursor_pos < *pos) {
+                    int old_pos = *pos;
+                    memmove(&buffer[*cursor_pos], &buffer[*cursor_pos + 1],
+                            old_pos - *cursor_pos);
+                    *pos = old_pos - 1;
+                    printf("\r");
+                    printf("io> ");
+                    printf("%s", buffer);
+                    printf(" ");
+                    int move_back = (*pos - *cursor_pos) + 1;
+                    for (int i = 0; i < move_back; i++) {
+                        printf("\b");
+                    }
+                    fflush(stdout);
+                }
+            }
+        }
+    }
+}
+
 static void add_to_history(const char *command) {
     size_t command_len = strlen(command) + 1;
     while (history_memory_used + command_len > HISTORY_BUFFER_SIZE && history_head != NULL) {
@@ -66,20 +196,19 @@ static void add_to_history(const char *command) {
             history_head->prev = NULL;
         } else {
             history_tail = NULL;
-        }        
+        }
         free(oldest->command);
         free(oldest);
     }
     history_entry_t *new_entry = malloc(sizeof(history_entry_t));
     if (new_entry == NULL) {
-        return; 
+        return;
     }
     new_entry->command = strdup(command);
     if (new_entry->command == NULL) {
         free(new_entry);
-        return; 
+        return;
     }
-    
     new_entry->prev = history_tail;
     new_entry->next = NULL;
     if (history_tail != NULL) {
@@ -88,7 +217,6 @@ static void add_to_history(const char *command) {
         history_head = new_entry;
     }
     history_tail = new_entry;
-    
     history_memory_used += command_len;
     history_count++;
     history_current = NULL;
@@ -168,7 +296,7 @@ static char* read_line(void) {
             reset_terminal_mode(&original_termios);
             return buffer;
         }
-        else if (c == KEY_BACKSPACE || c == KEY_DELETE) {
+        else if (c == KEY_BACKSPACE || c == KEY_BACKSPACE_DELETE) {
             if (pos > 0 && cursor_pos > 0) {
                 memmove(&buffer[cursor_pos - 1], &buffer[cursor_pos], pos - cursor_pos + 1);
                 pos--;
@@ -185,72 +313,7 @@ static char* read_line(void) {
             }
         }
         else if (c == KEY_ESCAPE) {
-            c = getchar();
-            if (c == KEY_LEFT_BRACKET) {
-                c = getchar();
-                if (c == KEY_UP_ARROW) {
-                    if (history_current == NULL && pos > 0) {
-                        strncpy(unfinished_input, buffer, MAX_INPUT_LENGTH);
-                        has_unfinished_input = true;
-                    }
-                    if (history_tail != NULL) {
-                        if (history_current == NULL) {
-                            history_current = history_tail;
-                        }
-                        else if (history_current->prev != NULL) {
-                            history_current = history_current->prev;
-                        }
-                        for (int i = 0; i < pos; i++) {
-                            printf("\b \b");
-                        }
-                        strncpy(buffer, history_current->command, MAX_INPUT_LENGTH);
-                        pos = strlen(buffer);
-                        cursor_pos = pos;
-                        printf("%s", buffer);
-                    }
-                    fflush(stdout);
-                }
-                else if (c == KEY_DOWN_ARROW) {
-                    if (history_current != NULL) {
-                        if (history_current->next != NULL) {
-                            history_current = history_current->next;
-                        }
-                        else {
-                            history_current = NULL;
-                        }
-                        for (int i = 0; i < pos; i++) {
-                            printf("\b \b");
-                        }
-                        if (history_current != NULL) {
-                            strncpy(buffer, history_current->command, MAX_INPUT_LENGTH);
-                        }
-                        else if (has_unfinished_input) {
-                            strncpy(buffer, unfinished_input, MAX_INPUT_LENGTH);
-                        }
-                        else {
-                            buffer[0] = NULL_TERMINATOR;
-                        }
-                        pos = strlen(buffer);
-                        cursor_pos = pos;
-                        printf("%s", buffer);
-                    }
-                    fflush(stdout);
-                }
-                else if (c == KEY_LEFT_ARROW) {
-                    if (cursor_pos > 0) {
-                        cursor_pos--;
-                        printf("\033[D");
-                        fflush(stdout);
-                    }
-                }
-                else if (c == KEY_RIGHT_ARROW) {
-                    if (cursor_pos < pos) {
-                        cursor_pos++;
-                        printf("\033[C");
-                        fflush(stdout);
-                    }
-                }
-            }
+            handle_escape_sequence(buffer, &pos, &cursor_pos);
         }
         else if (c >= ASCII_SPACE && c < ASCII_DEL && pos < MAX_INPUT_LENGTH - 1) {
             if (cursor_pos < pos) {
@@ -293,6 +356,8 @@ static char* read_line(void) {
 }
 
 int main(void) {
+	signal(SIGINT, sigint_handler);
+    signal(SIGTERM, sigint_handler);
     printf("IO Access Tool - Low-level hardware register access\n");
     if (geteuid() != 0) {
         fprintf(stderr, "Warning: Running without root privileges. Many operations will fail.\n");
