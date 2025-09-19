@@ -37,9 +37,6 @@ implement the cursor initially.
 
 #define KEY_BACKSPACE 127
 #define KEY_BACKSPACE_DELETE 8
-#define KEY_DELETE 51
-#define KEY_HOME 72
-#define KEY_END  70
 #define KEY_ENTER 10
 #define KEY_CTRL_C 3
 #define KEY_CTRL_D 4
@@ -49,6 +46,7 @@ implement the cursor initially.
 
 #define NULL_TERMINATOR '\0'
 #define NEWLINE_CHAR '\n'
+#define CARRIAGE_RETURN '\r'
 
 #define CURSOR_LEFT   "\033[D"
 #define CURSOR_RIGHT  "\033[C"
@@ -69,6 +67,12 @@ static size_t history_memory_used = 0;
 static size_t history_count = 0;
 static char unfinished_input[MAX_INPUT_LENGTH] = {0};
 static bool has_unfinished_input = false;
+
+/*
+due to the request to add a long esc sequence (delete) and the block overload,
+it was decided to make it a separate function and rework the processing of the 
+remaining esc sequences.
+*/
 
 void handle_escape_sequence(char *buffer, int *pos, int *cursor_pos) {
     int c = getchar();
@@ -236,12 +240,14 @@ static void free_history(void) {
     history_memory_used = 0;
     history_count = 0;
 }
-
-// Restores terminal state on SIGINT / SIGTERM
-static void sigint_handler(int sig) {
+static void cleanup_terminal(void) {
     if (termios_initialized) {
         tcsetattr(STDIN_FILENO, TCSANOW, &original_termios_global);
     }
+}
+// Restores terminal state on SIGINT / SIGTERM
+static void sigint_handler(int sig) {
+    cleanup_terminal();
     if (sig == SIGINT) {
         printf("\nReceived interrupt signal\n");
     } else if (sig == SIGTERM) {
@@ -261,8 +267,15 @@ static void set_terminal_mode(struct termios *original) {
 }
 
 static void reset_terminal_mode(struct termios *original) {
-    tcsetattr(STDIN_FILENO, TCSANOW, original);
+    if (tcsetattr(STDIN_FILENO, TCSANOW, original) == -1) {
+        perror("tcsetattr failed");
+        exit(EXIT_FAILURE);
+    }
 }
+
+/*
+I had to redo the code a bit so that the answer wouldn't float away in another terminal mode.
+*/
 static char* read_line(void) {
     static char buffer[MAX_INPUT_LENGTH];
     int pos = 0;
@@ -277,16 +290,16 @@ static char* read_line(void) {
     }
     struct termios original_termios;
     set_terminal_mode(&original_termios);
-    printf("io> ");
+    printf("\rio> ");
     if (pos > 0) {
         printf("%s", buffer);
     }
     fflush(stdout);
     while (1) {
         c = getchar();
-        if (c == NEWLINE_CHAR) {
+        if (c == NEWLINE_CHAR || c == CARRIAGE_RETURN) {
             buffer[pos] = NULL_TERMINATOR;
-            printf("\n");
+            printf("\r\n");
             if (pos > 0) {
                 add_to_history(buffer);
             }
@@ -341,13 +354,13 @@ static char* read_line(void) {
             }
         }
         else if (c == KEY_CTRL_C) {
-            printf("\n");
+            printf("\r\n");
             reset_terminal_mode(&original_termios);
             return NULL;
         }
         else if (c == KEY_CTRL_D) {
             if (pos == 0) {
-                printf("\n");
+                printf("\r\n");
                 reset_terminal_mode(&original_termios);
                 return NULL;
             }
@@ -356,16 +369,20 @@ static char* read_line(void) {
 }
 
 int main(void) {
+	tcgetattr(STDIN_FILENO, &original_termios_global); //turned on the work with the terminal
+    termios_initialized = 1;
+    atexit(cleanup_terminal);
+    atexit(free_history);
 	signal(SIGINT, sigint_handler);
     signal(SIGTERM, sigint_handler);
     printf("IO Access Tool - Low-level hardware register access\n");
     if (geteuid() != 0) {
-        fprintf(stderr, "Warning: Running without root privileges. Many operations will fail.\n");
+        fprintf(stderr, "Warning: Running without root privileges. Many operations will fail.\r\n");
     }
     else if (!io_init()) {
-        fprintf(stderr, "Initialization failed. Some features may not work properly.\n");
+        fprintf(stderr, "Initialization failed. Some features may not work properly.\r\n");
     }
-    printf("Type 'help' for available commands.\n");
+    printf("Type 'help' for available commands.\r\n");
     
     char* line;
     int should_exit = 0;
@@ -381,7 +398,7 @@ int main(void) {
     
     io_cleanup();
     free_history();
-    printf("Exiting IO Access Tool. Goodbye!\n");
+    printf("Exiting IO Access Tool. Goodbye!\r\n");
     
     return 0;
 }
