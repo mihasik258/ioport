@@ -51,6 +51,9 @@ implement the cursor initially.
 #define CURSOR_LEFT   "\033[D"
 #define CURSOR_RIGHT  "\033[C"
 
+/*
+ * Global terminal state
+ */
 static struct termios original_termios_global;
 static int termios_initialized = 0;
 
@@ -60,6 +63,7 @@ typedef struct history_entry {
     struct history_entry *next;
 } history_entry_t;
 
+/* History management globals */
 static history_entry_t *history_head = NULL;
 static history_entry_t *history_tail = NULL;
 static history_entry_t *history_current = NULL;
@@ -150,6 +154,7 @@ void handle_escape_sequence(char *buffer, int *pos, int *cursor_pos) {
         }
         fflush(stdout);
     }
+    /* Extended escape sequences (Home/End/Delete) */
     else if (code == KEY_HOME_LONG || code == KEY_END_LONG || code == KEY_DELETE_LONG) {
         int extra = getchar();
         if (extra == KEY_TILDE) {
@@ -188,6 +193,11 @@ void handle_escape_sequence(char *buffer, int *pos, int *cursor_pos) {
     }
 }
 
+/*
+	add_to_history - add command to history buffer
+	Maintains FIFO history buffer with memory limits.
+	Evicts oldest entries when buffer is full.
+ */
 static void add_to_history(const char *command) {
     size_t command_len = strlen(command) + 1;
     while (history_memory_used + command_len > HISTORY_BUFFER_SIZE && history_head != NULL) {
@@ -260,6 +270,7 @@ static void set_terminal_mode(struct termios *original) {
     struct termios new_termios;
     tcgetattr(STDIN_FILENO, original);
     new_termios = *original;
+	/* Disable canonical mode, echo, and signals */
     new_termios.c_lflag &= ~(ICANON | ECHO | ISIG);
     new_termios.c_cc[VMIN] = 1;
     new_termios.c_cc[VTIME] = 0;
@@ -369,8 +380,10 @@ static char* read_line(void) {
 }
 
 int main(void) {
+	/* Save original terminal state */
 	tcgetattr(STDIN_FILENO, &original_termios_global); //turned on the work with the terminal
     termios_initialized = 1;
+	/* Register cleanup handlers */
     atexit(cleanup_terminal);
     atexit(free_history);
 	signal(SIGINT, sigint_handler);
