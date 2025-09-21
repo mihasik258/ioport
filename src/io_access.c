@@ -11,11 +11,6 @@
 #define PAGE_SIZE  4096 // Standard memory page size for x86 systems
 #define PORT_MASK  0xFFFF // Maximum address for port-mapped I/O
 
-static void print_error(const char* operation, uintptr_t addr) {
-  fprintf(stderr, "Error %s address 0x%lX: %s\n", 
-            operation, addr, strerror(errno));
-}
-
 static int  dev_mem_fd = -1;
 static bool  has_port_access = false;
 
