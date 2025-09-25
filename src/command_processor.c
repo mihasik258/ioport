@@ -64,6 +64,16 @@ static void print_value(const char *cmd, uintptr_t addr,
   else if (!strcmp(cmd, "iord"))
     printf("address 0x%lX: 0x%08lX\n", addr,val & 0xFFFFFFFF);
 }
+static void print_write_result(const char *cmd, uintptr_t addr,
+      unsigned long val)
+{
+  if (!strcmp(cmd, "iowb"))
+    printf("Write byte 0x%02lX to address 0x%lX\n", val & 0xFF, addr);
+  else if (!strcmp(cmd, "ioww"))
+    printf("Write word 0x%04lX to address 0x%lX\n", val & 0xFFFF, addr);
+  else if (!strcmp(cmd, "iowd"))
+    printf("Write dword 0x%08lX to address 0x%lX\n", val & 0xFFFFFFFF, addr);
+}
 
 static void handle_read_command(const char *cmd, const char *arg,
         uint8_t (*read_byte)(uintptr_t),
@@ -75,26 +85,16 @@ static void handle_read_command(const char *cmd, const char *arg,
     fprintf(stderr, "Invalid address: %s\n", arg);
     return;
     }
-    int ok = 1;
 	uint64_t val;
     if (!strcmp(cmd, "iorb")) {
         if (mem_read(addr, 1, &val) == 0)
             print_value(cmd, addr, read_byte(addr));
-        else
-            ok = 0;
     } else if (!strcmp(cmd, "iorw")) {
         if (mem_read(addr, 2, &val) == 0)
             print_value(cmd, addr, read_word(addr));
-        else
-            ok = 0;
     } else if (!strcmp(cmd, "iord")) {
         if (mem_read(addr, 4, &val) == 0)
             print_value(cmd, addr, read_dword(addr));
-        else
-            ok = 0;
-    }
-    if (!ok) {
-        fprintf(stderr, "Read failed at 0x%lx\n", (unsigned long)addr);
     }
 }
 
@@ -105,7 +105,6 @@ static void handle_write_command(const char *cmd, const char *arg1,
          void (*write_dword)(uintptr_t, uint32_t))
 {
   uintptr_t addr, data;
-
   if (parse_number(arg1, &addr)) {
     fprintf(stderr, "Invalid address: %s\n", arg1);
     return;
@@ -114,16 +113,22 @@ static void handle_write_command(const char *cmd, const char *arg1,
     fprintf(stderr, "Invalid data: %s\n", arg2);
     return;
   }
-
+  uint64_t val;
   if (!strcmp(cmd, "iowb")) {
-    write_byte(addr, (uint8_t)data);
-    printf("Write byte 0x%02lX to address 0x%lX\n", data & 0xFF, addr);
+      if (mem_read(addr, 1, &val) == 0) {
+          write_byte(addr, (uint8_t)data);
+          print_write_result(cmd, addr, data);
+      }
   } else if (!strcmp(cmd, "ioww")) {
-    write_word(addr, (uint16_t)data);
-    printf("Write word 0x%04lX to address 0x%lX\n", data & 0xFFFF, addr);
+      if (mem_read(addr, 2, &val) == 0) {
+          write_word(addr, (uint16_t)data);
+          print_write_result(cmd, addr, data);
+      }
   } else if (!strcmp(cmd, "iowd")) {
-    write_dword(addr, (uint32_t)data);
-    printf("Write dword 0x%08lX to address 0x%lX\n", data & 0xFFFFFFFF, addr);
+      if (mem_read(addr, 4, &val) == 0) {
+          write_dword(addr, (uint32_t)data);
+          print_write_result(cmd, addr, data);
+      }
   }
 }
 
